@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NOAH | Street & Y2K Vintage Store</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;700&family=Inter:wght@400;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'noah-black': '#050505',
+                        'noah-green': '#ccff00', // Acid Green for Y2K vibe
+                        'noah-gray': '#1a1a1a',
+                        'noah-silver': '#e0e0e0',
+                    },
+                    fontFamily: {
+                        'display': ['"Chakra Petch"', 'sans-serif'],
+                        'body': ['"Inter"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom Styles for Y2K/Street Vibe */
+        body {
+            background-color: #050505;
+            color: #e0e0e0;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, .nav-item {
+            font-family: 'Chakra Petch', sans-serif;
+            text-transform: uppercase;
+        }
+
+        /* Glitch Effect on Hover for Logo */
+        .glitch-hover:hover {
+            text-shadow: 2px 0 #ccff00, -2px 0 #ff00ea;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #050505;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ccff00;
+            border-radius: 0;
+        }
+
+        /* Image Placeholder Logic */
+        .img-placeholder {
+            background-color: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ccff00;
+            font-family: 'Chakra Petch', sans-serif;
+            border: 1px solid #333;
+        }
+
+        /* Grid Background pattern */
+        .bg-grid {
+            background-size: 40px 40px;
+            background-image: linear-gradient(to right, #1a1a1a 1px, transparent 1px),
+                              linear-gradient(to bottom, #1a1a1a 1px, transparent 1px);
+        }
+
+        .btn-primary {
+            background-color: transparent;
+            border: 1px solid #ccff00;
+            color: #ccff00;
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #ccff00;
+            color: #000;
+            box-shadow: 0 0 15px rgba(204, 255, 0, 0.5);
+        }
+
+        /* Active Link State */
+        .nav-link.active {
+            color: #ccff00;
+            border-bottom: 2px solid #ccff00;
+        }
+        
+        /* Loader Animation */
+        .loader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.5s ease;
+        }
+    </style>
+</head>
+<body class="bg-noah-black text-white relative">
+
+    <!-- Loading Screen -->
+    <div id="loader" class="loader-overlay">
+        <h1 class="text-6xl font-display font-bold text-noah-green tracking-tighter animate-pulse">NOAH</h1>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-50 bg-noah-black/90 backdrop-blur-sm border-b border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                <div class="flex-shrink-0 cursor-pointer" onclick="switchPage('home')">
+                    <span class="text-3xl font-bold font-display tracking-widest text-white glitch-hover">NOAH</span>
+                </div>
+                
+                <!-- Desktop Menu -->
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-8">
+                        <button onclick="switchPage('home')" class="nav-link active hover:text-noah-green px-3 py-2 text-sm font-medium transition-colors">HOME</button>
+                        <button onclick="switchPage('about')" class="nav-link hover:text-noah-green px-3 py-2 text-sm font-medium transition-colors">ABOUT</button>
+                        <button onclick="switchPage('shop')" class="nav-link hover:text-noah-green px-3 py-2 text-sm font-medium transition-colors">SHOP</button>
+                        <button onclick="switchPage('lookbook')" class="nav-link hover:text-noah-green px-3 py-2 text-sm font-medium transition-colors">LOOKBOOK</button>
+                        <button onclick="switchPage('contact')" class="nav-link hover:text-noah-green px-3 py-2 text-sm font-medium transition-colors">CONTACT</button>
+                    </div>
+                </div>
+
+                <!-- Mobile menu button -->
+                <div class="md:hidden">
+                    <button onclick="toggleMobileMenu()" class="text-white hover:text-noah-green focus:outline-none">
+                        <i class="fas fa-bars text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu Panel -->
+        <div id="mobile-menu" class="hidden md:hidden bg-noah-black border-b border-gray-800">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <button onclick="switchPage('home')" class="text-gray-300 hover:text-noah-green block px-3 py-2 rounded-md text-base font-medium w-full text-left">HOME</button>
+                <button onclick="switchPage('about')" class="text-gray-300 hover:text-noah-green block px-3 py-2 rounded-md text-base font-medium w-full text-left">ABOUT</button>
+                <button onclick="switchPage('shop')" class="text-gray-300 hover:text-noah-green block px-3 py-2 rounded-md text-base font-medium w-full text-left">SHOP</button>
+                <button onclick="switchPage('lookbook')" class="text-gray-300 hover:text-noah-green block px-3 py-2 rounded-md text-base font-medium w-full text-left">LOOKBOOK</button>
+                <button onclick="switchPage('contact')" class="text-gray-300 hover:text-noah-green block px-3 py-2 rounded-md text-base font-medium w-full text-left">CONTACT</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Container -->
+    <main class="pt-20 min-h-screen bg-grid">
+        
+        <!-- PAGE 1: HOME -->
+        <section id="home" class="page-section fade-in">
+            <!-- Hero Section -->
+            <div class="relative h-[80vh] flex items-center justify-center overflow-hidden">
+                <!-- Background Image (User should put hero.jpg in images folder) -->
+                <div class="absolute inset-0 z-0 opacity-50">
+                    <img src="images/hero.jpg" 
+                         onerror="this.src='https://images.unsplash.com/photo-1523398002811-999ca8dec234?q=80&w=2000&auto=format&fit=crop'; this.onerror=null;" 
+                         class="w-full h-full object-cover" alt="NOAH Vibes">
+                </div>
+                
+                <div class="relative z-10 text-center px-4">
+                    <h2 class="text-noah-green text-lg md:text-xl font-bold tracking-[0.5em] mb-4">EST. 2024 TOKYO</h2>
+                    <h1 class="text-6xl md:text-9xl font-display font-bold text-white mb-6 border-2 border-white p-4 inline-block backdrop-blur-sm">
+                        NOAH
+                    </h1>
+                    <p class="text-gray-300 text-xl mb-8 max-w-2xl mx-auto font-light">
+                        DIGITAL NOSTALGIA & STREET CULTURE
+                    </p>
+                    <button onclick="switchPage('shop')" class="btn-primary px-8 py-4 text-xl font-bold tracking-wider uppercase">
+                        Check New Drops
+                    </button>
+                </div>
+            </div>
+
+            <!-- Marquee Text -->
+            <div class="bg-noah-green text-black py-3 overflow-hidden whitespace-nowrap border-y-2 border-white">
+                <div class="animate-marquee inline-block font-bold text-xl font-display">
+                    NEW ARRIVALS EVERY WEEK +++ VINTAGE & SELECTED ITEMS +++ WORLDWIDE SHIPPING +++ NOAH STREET WEAR +++ 
+                    NEW ARRIVALS EVERY WEEK +++ VINTAGE & SELECTED ITEMS +++ WORLDWIDE SHIPPING +++ NOAH STREET WEAR +++
+                </div>
+            </div>
+        </section>
+
+        <!-- PAGE 2: ABOUT -->
+        <section id="about" class="page-section hidden max-w-4xl mx-auto px-4 py-16">
+            <div class="flex flex-col md:flex-row gap-12 items-center">
+                <div class="w-full md:w-1/2">
+                    <img src="images/about.jpg" 
+                         onerror="this.src='https://images.unsplash.com/photo-1612462766564-9ca1e72d2361?q=80&w=800&auto=format&fit=crop'; this.onerror=null;"
+                         class="w-full h-auto border-2 border-noah-green grayscale hover:grayscale-0 transition duration-500" alt="About NOAH">
+                </div>
+                <div class="w-full md:w-1/2">
+                    <h2 class="text-5xl font-display font-bold text-white mb-6">WHO WE ARE</h2>
+                    <div class="w-20 h-1 bg-noah-green mb-8"></div>
+                    <p class="text-gray-300 leading-relaxed mb-6">
+                        NOAHは、2000年代のカルチャーと現代のストリートシーンを融合させる実験的な古着屋です。
+                    </p>
+                    <p class="text-gray-300 leading-relaxed mb-6">
+                        Y2Kのデジタリズム、90年代の無骨さ、そして未来的なシルエット。
+                        私たちは単に服を売るのではなく、スタイルという「態度」を提案します。
+                    </p>
+                    <p class="text-gray-300 leading-relaxed">
+                        厳選されたヴィンテージアイテムと、独自の視点でセレクトされたアイテムたちが、あなたの個性をバグらせる。
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- PAGE 3: SHOP -->
+        <section id="shop" class="page-section hidden max-w-7xl mx-auto px-4 py-16">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-6xl font-display font-bold mb-4">LATEST DROPS</h2>
+                <p class="text-noah-green">CLICK ITEM TO BUY ON MERCARI</p>
+            </div>
+
+            <!-- Shop Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Product Card 1 -->
+                <div class="group border border-gray-800 bg-noah-black hover:border-noah-green transition duration-300">
+                    <div class="relative overflow-hidden aspect-[3/4]">
+                        <!-- Image placeholder logic: looks for images/item1.jpg -->
+                        <img src="images/item1.jpg" 
+                             onerror="this.src='https://images.unsplash.com/photo-1578587018452-892bacefd3f2?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
+                             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="Vintage Tee">
+                        <div class="absolute top-2 right-2 bg-noah-green text-black text-xs font-bold px-2 py-1">VINTAGE</div>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold mb-2">00's CYBER GRAPHIC TEE</h3>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-400">¥8,800</span>
+                            <a href="https://jp.mercari.com" target="_blank" class="text-noah-green hover:text-white uppercase text-sm font-bold border-b border-noah-green pb-1">Buy on Mercari <i class="fas fa-external-link-alt ml-1"></i></a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Product Card 2 -->
+                <div class="group border border-gray-800 bg-noah-black hover:border-noah-green transition duration-300">
+                    <div class="relative overflow-hidden aspect-[3/4]">
+                        <img src="images/item2.jpg" 
+                             onerror="this.src='https://images.unsplash.com/photo-1551488852-0801751ac233?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
+                             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="Baggy Jeans">
+                        <div class="absolute top-2 right-2 bg-white text-black text-xs font-bold px-2 py-1">Y2K</div>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold mb-2">WIDE SILHOUETTE DENIM</h3>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-400">¥12,000</span>
+                            <a href="https://jp.mercari.com" target="_blank" class="text-noah-green hover:text-white uppercase text-sm font-bold border-b border-noah-green pb-1">Buy on Mercari <i class="fas fa-external-link-alt ml-1"></i></a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Product Card 3 -->
+                <div class="group border border-gray-800 bg-noah-black hover:border-noah-green transition duration-300">
+                    <div class="relative overflow-hidden aspect-[3/4]">
+                        <img src="images/item3.jpg" 
+                             onerror="this.src='https://images.unsplash.com/photo-1591047139829-d91aecb6caea?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
+                             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="Jacket">
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold mb-2">TECH NYLON JACKET</h3>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-400">¥15,800</span>
+                            <a href="https://jp.mercari.com" target="_blank" class="text-noah-green hover:text-white uppercase text-sm font-bold border-b border-noah-green pb-1">Buy on Mercari <i class="fas fa-external-link-alt ml-1"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center mt-12">
+                <a href="https://jp.mercari.com" target="_blank" class="inline-block border border-gray-600 text-gray-400 hover:border-noah-green hover:text-noah-green px-6 py-3 transition">
+                    VIEW ALL ITEMS ON MERCARI
+                </a>
+            </div>
+        </section>
+
+        <!-- PAGE 4: LOOKBOOK -->
+        <section id="lookbook" class="page-section hidden max-w-7xl mx-auto px-4 py-16">
+            <h2 class="text-6xl font-display font-bold text-center mb-12 stroke-text">GALLERY</h2>
+            
+            <!-- Masonry-style Layout -->
+            <div class="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4">
+                <div class="relative group">
+                    <img src="images/look1.jpg" 
+                         onerror="this.src='https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
+                         class="w-full h-auto border border-transparent group-hover:border-noah-green transition">
+                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                        <span class="text-noah-green font-bold text-xl">STYLE 01</span>
+                    </div>
+                </div>
+                
+                <div class="relative group">
+                    <img src="images/look2.jpg" 
+                         onerror="this.src='https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
+                         class="w-full h-auto border border-transparent group-hover:border-noah-green transition">
+                </div>
+
+                <div class="relative group">
+                    <img src="images/look3.jpg" 
+                         onerror="this.src='https://images.unsplash.com/photo-1485230946086-21e788345f3d?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
+                         class="w-full h-auto border border-transparent group-hover:border-noah-green transition">
+                </div>
+
+                <div class="relative group">
+                    <img src="images/look4.jpg" 
+                         onerror="this.src='https://images.unsplash.com/photo-1503342394128-c104d54dba01?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
+                         class="w-full h-auto border border-transparent group-hover:border-noah-green transition">
+                </div>
+                
+                <div class="relative group">
+                    <img src="images/look5.jpg" 
+                         onerror="this.src='https://images.unsplash.com/photo-1544441893-675973e31985?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
+                         class="w-full h-auto border border-transparent group-hover:border-noah-green transition">
+                     <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                        <span class="text-noah-green font-bold text-xl">STYLE 02</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- PAGE 5: CONTACT -->
+        <section id="contact" class="page-section hidden max-w-2xl mx-auto px-4 py-16">
+            <div class="border border-gray-800 bg-noah-black/50 p-8 md:p-12 relative overflow-hidden">
+                <!-- Decorative element -->
+                <div class="absolute top-0 right-0 w-20 h-20 border-t-2 border-r-2 border-noah-green"></div>
+                
+                <h2 class="text-4xl font-display font-bold mb-8 text-center">GET IN TOUCH</h2>
+                
+                <form class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-bold mb-2 text-gray-400">NAME</label>
+                        <input type="text" class="w-full bg-black border-2 border-gray-700 p-3 text-white focus:border-noah-green focus:outline-none transition-colors" placeholder="YOUR NAME">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-2 text-gray-400">EMAIL</label>
+                        <input type="email" class="w-full bg-black border-2 border-gray-700 p-3 text-white focus:border-noah-green focus:outline-none transition-colors" placeholder="YOUR EMAIL">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-2 text-gray-400">MESSAGE</label>
+                        <textarea rows="4" class="w-full bg-black border-2 border-gray-700 p-3 text-white focus:border-noah-green focus:outline-none transition-colors" placeholder="MESSAGE..."></textarea>
+                    </div>
+                    <button type="submit" class="w-full btn-primary py-4 font-bold text-lg uppercase">
+                        SEND MESSAGE
+                    </button>
+                </form>
+
+                <div class="mt-12 pt-8 border-t border-gray-800">
+                    <h3 class="text-center text-lg mb-6 font-display">FOLLOW US</h3>
+                    <div class="flex justify-center space-x-8">
+                        <a href="https://instagram.com" target="_blank" class="group flex flex-col items-center">
+                            <div class="w-12 h-12 flex items-center justify-center border border-gray-600 rounded-full group-hover:border-noah-green group-hover:text-noah-green transition-all">
+                                <i class="fab fa-instagram text-2xl"></i>
+                            </div>
+                            <span class="text-xs mt-2 text-gray-500 group-hover:text-noah-green">INSTAGRAM</span>
+                        </a>
+                        <a href="https://jp.mercari.com" target="_blank" class="group flex flex-col items-center">
+                            <div class="w-12 h-12 flex items-center justify-center border border-gray-600 rounded-full group-hover:border-noah-green group-hover:text-noah-green transition-all">
+                                <i class="fas fa-shopping-bag text-2xl"></i>
+                            </div>
+                            <span class="text-xs mt-2 text-gray-500 group-hover:text-noah-green">MERCARI</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-black border-t border-gray-900 py-8 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center">
+            <div class="text-2xl font-display font-bold text-white mb-4 md:mb-0">NOAH</div>
+            <div class="text-gray-600 text-sm">
+                &copy; 2024 NOAH STORE. ALL RIGHTS RESERVED.
+            </div>
+            <div class="flex space-x-6 mt-4 md:mt-0 text-gray-500 text-sm">
+                <a href="#" class="hover:text-noah-green">PRIVACY</a>
+                <a href="#" class="hover:text-noah-green">TERMS</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript for SPA Functionality -->
+    <script>
+        // Loading Animation
+        window.addEventListener('load', () => {
+            const loader = document.getElementById('loader');
+            setTimeout(() => {
+                loader.style.opacity = '0';
+                setTimeout(() => {
+                    loader.style.display = 'none';
+                }, 500);
+            }, 1000);
+        });
+
+        // Mobile Menu Toggle
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            menu.classList.toggle('hidden');
+        }
+
+        // Page Switching Logic
+        function switchPage(pageId) {
+            // Hide all sections
+            const sections = document.querySelectorAll('.page-section');
+            sections.forEach(section => {
+                section.classList.add('hidden');
+            });
+
+            // Show selected section
+            const selectedSection = document.getElementById(pageId);
+            selectedSection.classList.remove('hidden');
+
+            // Update Navigation Active State
+            const navLinks = document.querySelectorAll('.nav-link');
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                // Simple logic to highlight based on text content (optional refinement)
+                if(link.textContent.toLowerCase() === pageId) {
+                    link.classList.add('active');
+                }
+            });
+
+            // Scroll to top
+            window.scrollTo(0, 0);
+
+            // Close mobile menu if open
+            document.getElementById('mobile-menu').classList.add('hidden');
+        }
+
+        // Custom Tailwind Config for marquee animation
+        tailwind.config.theme.extend.keyframes = {
+            marquee: {
+                '0%': { transform: 'translateX(0%)' },
+                '100%': { transform: 'translateX(-100%)' },
+            }
+        }
+        tailwind.config.theme.extend.animation = {
+            marquee: 'marquee 20s linear infinite',
+        }
+    </script>
+</body>
+</html>
