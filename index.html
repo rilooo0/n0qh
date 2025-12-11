@@ -11,13 +11,345 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;700&family=Inter:wght@400;900&display=swap" rel="stylesheet">
     
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        // Fixed: Imported signInWithCustomToken
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Fixed: Consolidated config initialization
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        
+        // Initialize Firebase
+        // Fallback for standalone viewing (won't work for DB without real config)
+        const app = initializeApp(firebaseConfig || {apiKey: "AIza...", authDomain: "...", projectId: "..."});
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // Global State
+        window.isAdmin = false;
+        let currentUser = null;
+
+        // Authentication
+        const initAuth = async () => {
+            try {
+                // Fixed: Properly handle custom token if available in the environment
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth Error:", error);
+            }
+        };
+
+        initAuth();
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                console.log("User authenticated:", user.uid);
+                // Only start listeners after auth is confirmed
+                initRealtimeListeners();
+            }
+        });
+
+        // Database Collections
+        const SHOP_COLLECTION = `artifacts/${appId}/public/data/shop_items`;
+        const STYLE_COLLECTION = `artifacts/${appId}/public/data/style_model`;
+
+        // Initial Data Seeding
+        const seedData = {
+            shop: [
+                {
+                    title: "00's CYBER GRAPHIC TEE",
+                    price: "¥8,800",
+                    image: "images/item1.jpg",
+                    tag: "VINTAGE",
+                    link: "https://jp.mercari.com/user/profile/532695058?utm_medium=share&utm_source=ios",
+                    isRecommended: true, 
+                    createdAt: Date.now()
+                },
+                {
+                    title: "WIDE SILHOUETTE DENIM",
+                    price: "¥12,000",
+                    image: "images/item2.jpg",
+                    tag: "Y2K",
+                    link: "https://jp.mercari.com/user/profile/532695058?utm_medium=share&utm_source=ios",
+                    isRecommended: false,
+                    createdAt: Date.now() - 1000
+                },
+                {
+                    title: "TECH NYLON JACKET",
+                    price: "¥15,800",
+                    image: "images/item3.jpg",
+                    tag: "TECH",
+                    link: "https://jp.mercari.com/user/profile/532695058?utm_medium=share&utm_source=ios",
+                    isRecommended: true,
+                    createdAt: Date.now() - 2000
+                }
+            ],
+            style: [
+                { image: "images/look1.jpg", label: "STYLE 01", createdAt: Date.now() },
+                { image: "images/look2.jpg", label: "", createdAt: Date.now() - 1000 },
+                { image: "images/look3.jpg", label: "", createdAt: Date.now() - 2000 },
+                { image: "images/look4.jpg", label: "", createdAt: Date.now() - 3000 },
+                { image: "images/look5.jpg", label: "STYLE 02", createdAt: Date.now() - 4000 }
+            ]
+        };
+
+        // Listeners
+        function initRealtimeListeners() {
+            // Shop Listener
+            onSnapshot(collection(db, SHOP_COLLECTION), (snapshot) => {
+                const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                if (items.length === 0 && window.isAdmin) {
+                    renderShop(seedData.shop, true);
+                    renderHomeRecommendations(seedData.shop.filter(i => i.isRecommended), true);
+                } else if (items.length > 0) {
+                    items.sort((a, b) => b.createdAt - a.createdAt);
+                    renderShop(items, false);
+                    
+                    // Render Recommendations on Home
+                    const recommended = items.filter(item => item.isRecommended);
+                    renderHomeRecommendations(recommended, false);
+                } else {
+                     renderShop(seedData.shop, true);
+                     renderHomeRecommendations(seedData.shop.filter(i => i.isRecommended), true);
+                }
+            }, (error) => console.error("Shop sync error:", error));
+
+            // Style Model Listener
+            onSnapshot(collection(db, STYLE_COLLECTION), (snapshot) => {
+                const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                if (items.length === 0) {
+                     renderStyle(seedData.style, true);
+                } else {
+                    items.sort((a, b) => b.createdAt - a.createdAt);
+                    renderStyle(items, false);
+                }
+            }, (error) => console.error("Style sync error:", error));
+        }
+
+        // Render Functions
+        window.renderShop = (items, isVirtual) => {
+            const container = document.getElementById('shop-grid');
+            if (!container) return;
+            container.innerHTML = '';
+
+            items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = "group border border-gray-800 bg-noah-black hover:border-noah-green transition duration-300 relative";
+                
+                const fallbackImg = 'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?q=80&w=600&auto=format&fit=crop';
+                
+                // Admin Controls (Delete & Recommend)
+                let adminControls = '';
+                if (window.isAdmin && !isVirtual) {
+                    const isRec = item.isRecommended ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-400';
+                    adminControls = `
+                        <div class="absolute top-2 left-2 z-20 flex space-x-2">
+                            <button onclick="deleteItem('${SHOP_COLLECTION}', '${item.id}')" class="bg-red-600 text-white w-8 h-8 rounded flex items-center justify-center hover:bg-red-700">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            <button onclick="toggleRecommend('${item.id}', ${item.isRecommended || false})" class="bg-white ${isRec} w-8 h-8 rounded flex items-center justify-center transition-colors">
+                                <i class="fas fa-star"></i>
+                            </button>
+                        </div>
+                    `;
+                }
+
+                card.innerHTML = `
+                    ${adminControls}
+                    <a href="${item.link}" target="_blank" class="block relative overflow-hidden aspect-[3/4]">
+                        <img src="${item.image}" 
+                             onerror="this.src='${fallbackImg}'; this.onerror=null;"
+                             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="${item.title}">
+                        ${item.tag ? `<div class="absolute top-2 right-2 bg-noah-green text-black text-xs font-bold px-2 py-1">${item.tag}</div>` : ''}
+                    </a>
+                    <div class="p-6">
+                        <a href="${item.link}" target="_blank" class="block">
+                            <h3 class="text-xl font-bold mb-2 group-hover:text-noah-green transition-colors line-clamp-2">${item.title}</h3>
+                        </a>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-400">${item.price}</span>
+                            <a href="${item.link}" target="_blank" class="text-noah-green hover:text-white uppercase text-sm font-bold border-b border-noah-green pb-1">Buy <i class="fas fa-external-link-alt ml-1"></i></a>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        };
+
+        window.renderHomeRecommendations = (items, isVirtual) => {
+            const container = document.getElementById('home-recommended-grid');
+            if (!container) return;
+            
+            if (items.length === 0) {
+                container.innerHTML = '<div class="col-span-full text-center text-gray-500">No recommendations selected yet.</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            // Only show up to 4 items
+            items.slice(0, 4).forEach(item => {
+                const card = document.createElement('div');
+                card.className = "group border border-gray-800 bg-noah-black/50 hover:border-noah-green transition duration-300";
+                
+                const fallbackImg = 'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?q=80&w=600&auto=format&fit=crop';
+                
+                card.innerHTML = `
+                    <a href="${item.link}" target="_blank" class="block relative overflow-hidden aspect-square">
+                        <img src="${item.image}" 
+                             onerror="this.src='${fallbackImg}'; this.onerror=null;"
+                             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="${item.title}">
+                    </a>
+                    <div class="p-4">
+                        <h4 class="text-sm font-bold mb-1 truncate text-white group-hover:text-noah-green">${item.title}</h4>
+                        <p class="text-xs text-gray-400">${item.price}</p>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        };
+
+        window.renderStyle = (items, isVirtual) => {
+            const container = document.getElementById('style-grid');
+            if (!container) return;
+            container.innerHTML = '';
+
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = "relative group break-inside-avoid mb-4";
+                
+                if (window.isAdmin && !isVirtual) {
+                    const delBtn = document.createElement('button');
+                    delBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                    delBtn.className = "absolute top-2 left-2 z-20 bg-red-600 text-white p-2 rounded hover:bg-red-700";
+                    delBtn.onclick = (e) => { e.preventDefault(); deleteItem(STYLE_COLLECTION, item.id); };
+                    div.appendChild(delBtn);
+                }
+
+                const fallbackImg = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=600&auto=format&fit=crop';
+
+                div.innerHTML += `
+                    <img src="${item.image}" 
+                         onerror="this.src='${fallbackImg}'; this.onerror=null;"
+                         class="w-full h-auto border border-transparent group-hover:border-noah-green transition">
+                    ${item.label ? `
+                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                        <span class="text-noah-green font-bold text-xl">${item.label}</span>
+                    </div>` : ''}
+                `;
+                container.appendChild(div);
+            });
+        };
+
+        // Actions
+        window.addItem = async (type) => {
+            if (!currentUser) return;
+            
+            try {
+                if (type === 'shop') {
+                    const title = document.getElementById('shop-title').value;
+                    const price = document.getElementById('shop-price').value;
+                    const image = document.getElementById('shop-image').value;
+                    const tag = document.getElementById('shop-tag').value;
+                    const link = document.getElementById('shop-link').value;
+                    
+                    if(!title || !image) return alert("Title and Image URL are required");
+
+                    await addDoc(collection(db, SHOP_COLLECTION), {
+                        title, price, image, tag, link, 
+                        isRecommended: false, // Default to not recommended
+                        createdAt: Date.now()
+                    });
+                    
+                    document.getElementById('shop-form').reset();
+                    alert("Item Added!");
+                } else if (type === 'style') {
+                    const image = document.getElementById('style-image').value;
+                    const label = document.getElementById('style-label').value;
+
+                    if(!image) return alert("Image URL is required");
+
+                    await addDoc(collection(db, STYLE_COLLECTION), {
+                        image, label, createdAt: Date.now()
+                    });
+
+                    document.getElementById('style-form').reset();
+                    alert("Style Added!");
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Error adding item: " + e.message);
+            }
+        };
+
+        window.toggleRecommend = async (docId, currentStatus) => {
+            try {
+                await updateDoc(doc(db, SHOP_COLLECTION, docId), {
+                    isRecommended: !currentStatus
+                });
+            } catch (e) {
+                console.error(e);
+                alert("Error updating recommendation: " + e.message);
+            }
+        };
+
+        window.deleteItem = async (collectionPath, docId) => {
+            if(!confirm("Are you sure you want to delete this item?")) return;
+            try {
+                await deleteDoc(doc(db, collectionPath, docId));
+            } catch (e) {
+                console.error(e);
+                alert("Error deleting: " + e.message);
+            }
+        };
+
+        // Admin Toggle
+        window.toggleAdmin = () => {
+            // ... legacy placeholder
+        }
+        
+        if (localStorage.getItem('noah_admin') === 'true') {
+            window.isAdmin = true;
+            document.body.classList.add('admin-mode');
+        }
+
+        window.realToggleAdmin = () => {
+             const current = localStorage.getItem('noah_admin') === 'true';
+             if (current) {
+                 localStorage.setItem('noah_admin', 'false');
+                 window.isAdmin = false;
+                 alert("Admin Mode: OFF");
+             } else {
+                 const pass = prompt("Enter Admin Password:");
+                 if (pass === 'noah') {
+                     localStorage.setItem('noah_admin', 'true');
+                     window.isAdmin = true;
+                     alert("Admin Mode: ON\nGo to SHOP to select recommended items (Star icon).");
+                 } else {
+                     alert("Invalid Password");
+                 }
+             }
+             location.reload();
+        }
+
+    </script>
+
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
                         'noah-black': '#050505',
-                        'noah-green': '#ccff00', // Acid Green for Y2K vibe
+                        'noah-green': '#ccff00', 
                         'noah-gray': '#1a1a1a',
                         'noah-silver': '#e0e0e0',
                     },
@@ -43,12 +375,10 @@
             text-transform: uppercase;
         }
 
-        /* Glitch Effect on Hover for Logo */
         .glitch-hover:hover {
             text-shadow: 2px 0 #ccff00, -2px 0 #ff00ea;
         }
 
-        /* Custom Scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -60,18 +390,6 @@
             border-radius: 0;
         }
 
-        /* Image Placeholder Logic */
-        .img-placeholder {
-            background-color: #1a1a1a;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #ccff00;
-            font-family: 'Chakra Petch', sans-serif;
-            border: 1px solid #333;
-        }
-
-        /* Grid Background pattern */
         .bg-grid {
             background-size: 40px 40px;
             background-image: linear-gradient(to right, #1a1a1a 1px, transparent 1px),
@@ -90,13 +408,11 @@
             box-shadow: 0 0 15px rgba(204, 255, 0, 0.5);
         }
 
-        /* Active Link State */
         .nav-link.active {
             color: #ccff00;
             border-bottom: 2px solid #ccff00;
         }
         
-        /* Loader Animation */
         .loader-overlay {
             position: fixed;
             top: 0;
@@ -109,6 +425,17 @@
             justify-content: center;
             align-items: center;
             transition: opacity 0.5s ease;
+        }
+
+        .admin-panel {
+            display: none;
+        }
+        body.admin-mode .admin-panel {
+            display: block;
+            border: 1px dashed #ccff00;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: rgba(204, 255, 0, 0.05);
         }
     </style>
 </head>
@@ -133,7 +460,7 @@
                         <button onclick="switchPage('home')" class="nav-link active hover:text-noah-green px-3 py-2 text-sm font-medium transition-colors">HOME</button>
                         <button onclick="switchPage('about')" class="nav-link hover:text-noah-green px-3 py-2 text-sm font-medium transition-colors">ABOUT</button>
                         <button onclick="switchPage('shop')" class="nav-link hover:text-noah-green px-3 py-2 text-sm font-medium transition-colors">SHOP</button>
-                        <button onclick="switchPage('lookbook')" class="nav-link hover:text-noah-green px-3 py-2 text-sm font-medium transition-colors">LOOKBOOK</button>
+                        <button onclick="switchPage('stylemodel')" class="nav-link hover:text-noah-green px-3 py-2 text-sm font-medium transition-colors">STYLEMODEL</button>
                         <button onclick="switchPage('contact')" class="nav-link hover:text-noah-green px-3 py-2 text-sm font-medium transition-colors">CONTACT</button>
                     </div>
                 </div>
@@ -153,7 +480,7 @@
                 <button onclick="switchPage('home')" class="text-gray-300 hover:text-noah-green block px-3 py-2 rounded-md text-base font-medium w-full text-left">HOME</button>
                 <button onclick="switchPage('about')" class="text-gray-300 hover:text-noah-green block px-3 py-2 rounded-md text-base font-medium w-full text-left">ABOUT</button>
                 <button onclick="switchPage('shop')" class="text-gray-300 hover:text-noah-green block px-3 py-2 rounded-md text-base font-medium w-full text-left">SHOP</button>
-                <button onclick="switchPage('lookbook')" class="text-gray-300 hover:text-noah-green block px-3 py-2 rounded-md text-base font-medium w-full text-left">LOOKBOOK</button>
+                <button onclick="switchPage('stylemodel')" class="text-gray-300 hover:text-noah-green block px-3 py-2 rounded-md text-base font-medium w-full text-left">STYLEMODEL</button>
                 <button onclick="switchPage('contact')" class="text-gray-300 hover:text-noah-green block px-3 py-2 rounded-md text-base font-medium w-full text-left">CONTACT</button>
             </div>
         </div>
@@ -166,7 +493,6 @@
         <section id="home" class="page-section fade-in">
             <!-- Hero Section -->
             <div class="relative h-[80vh] flex items-center justify-center overflow-hidden">
-                <!-- Background Image (User should put hero.jpg in images folder) -->
                 <div class="absolute inset-0 z-0 opacity-50">
                     <img src="images/hero.jpg" 
                          onerror="this.src='https://images.unsplash.com/photo-1523398002811-999ca8dec234?q=80&w=2000&auto=format&fit=crop'; this.onerror=null;" 
@@ -174,7 +500,7 @@
                 </div>
                 
                 <div class="relative z-10 text-center px-4">
-                    <h2 class="text-noah-green text-lg md:text-xl font-bold tracking-[0.5em] mb-4">EST. 2024 TOKYO</h2>
+                    <h2 class="text-noah-green text-lg md:text-xl font-bold tracking-[0.5em] mb-4">EST. 2025 TOKYO</h2>
                     <h1 class="text-6xl md:text-9xl font-display font-bold text-white mb-6 border-2 border-white p-4 inline-block backdrop-blur-sm">
                         NOAH
                     </h1>
@@ -192,6 +518,19 @@
                 <div class="animate-marquee inline-block font-bold text-xl font-display">
                     NEW ARRIVALS EVERY WEEK +++ VINTAGE & SELECTED ITEMS +++ WORLDWIDE SHIPPING +++ NOAH STREET WEAR +++ 
                     NEW ARRIVALS EVERY WEEK +++ VINTAGE & SELECTED ITEMS +++ WORLDWIDE SHIPPING +++ NOAH STREET WEAR +++
+                </div>
+            </div>
+
+            <!-- Recommended Section (New) -->
+            <div class="max-w-7xl mx-auto px-4 py-16">
+                <div class="flex items-center justify-between mb-8">
+                    <h3 class="text-2xl md:text-3xl font-display font-bold text-white border-l-4 border-noah-green pl-4">RECOMMENDED PICKUPS</h3>
+                    <button onclick="switchPage('shop')" class="text-sm text-gray-400 hover:text-noah-green transition">VIEW ALL <i class="fas fa-arrow-right ml-1"></i></button>
+                </div>
+                
+                <!-- This grid is populated by JS with items where isRecommended = true -->
+                <div id="home-recommended-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                    <div class="col-span-full text-center text-gray-600 py-8">Loading recommendations...</div>
                 </div>
             </div>
         </section>
@@ -214,9 +553,6 @@
                         Y2Kのデジタリズム、90年代の無骨さ、そして未来的なシルエット。
                         私たちは単に服を売るのではなく、スタイルという「態度」を提案します。
                     </p>
-                    <p class="text-gray-300 leading-relaxed">
-                        厳選されたヴィンテージアイテムと、独自の視点でセレクトされたアイテムたちが、あなたの個性をバグらせる。
-                    </p>
                 </div>
             </div>
         </section>
@@ -228,58 +564,26 @@
                 <p class="text-noah-green">CLICK ITEM TO BUY ON MERCARI</p>
             </div>
 
-            <!-- Shop Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <!-- Product Card 1 -->
-                <div class="group border border-gray-800 bg-noah-black hover:border-noah-green transition duration-300">
-                    <div class="relative overflow-hidden aspect-[3/4]">
-                        <!-- Image placeholder logic: looks for images/item1.jpg -->
-                        <img src="images/item1.jpg" 
-                             onerror="this.src='https://images.unsplash.com/photo-1578587018452-892bacefd3f2?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
-                             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="Vintage Tee">
-                        <div class="absolute top-2 right-2 bg-noah-green text-black text-xs font-bold px-2 py-1">VINTAGE</div>
+            <!-- ADMIN ADD ITEM FORM -->
+            <div class="admin-panel max-w-2xl mx-auto mb-12">
+                <h3 class="text-noah-green font-bold mb-4"><i class="fas fa-plus-circle"></i> ADD NEW ITEM</h3>
+                <form id="shop-form" onsubmit="event.preventDefault(); addItem('shop');" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="text" id="shop-title" placeholder="Item Name" class="bg-black border border-gray-700 p-2 w-full text-white">
+                        <input type="text" id="shop-price" placeholder="Price (e.g. ¥5,000)" class="bg-black border border-gray-700 p-2 w-full text-white">
                     </div>
-                    <div class="p-6">
-                        <h3 class="text-xl font-bold mb-2">00's CYBER GRAPHIC TEE</h3>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-400">¥8,800</span>
-                            <a href="https://jp.mercari.com/user/profile/532695058?utm_medium=share&utm_source=ios" target="_blank" class="text-noah-green hover:text-white uppercase text-sm font-bold border-b border-noah-green pb-1">Buy on Mercari <i class="fas fa-external-link-alt ml-1"></i></a>
-                        </div>
-                    </div>
-                </div>
+                    <input type="text" id="shop-image" placeholder="Image URL (Right click image -> Copy Image Address)" class="bg-black border border-gray-700 p-2 w-full text-white">
+                    <input type="text" id="shop-tag" placeholder="Tag (e.g. Y2K, VINTAGE)" class="bg-black border border-gray-700 p-2 w-full text-white">
+                    <input type="text" id="shop-link" value="https://jp.mercari.com/user/profile/532695058?utm_medium=share&utm_source=ios" placeholder="Mercari Link" class="bg-black border border-gray-700 p-2 w-full text-white">
+                    <button type="submit" class="bg-noah-green text-black font-bold py-2 px-4 w-full hover:bg-white transition">ADD TO SHOP</button>
+                    <p class="text-xs text-gray-500 mt-2">* Added items will appear in the list below. Click the <i class="fas fa-star text-yellow-500"></i> icon on the card to feature it on the Home page.</p>
+                </form>
+            </div>
 
-                <!-- Product Card 2 -->
-                <div class="group border border-gray-800 bg-noah-black hover:border-noah-green transition duration-300">
-                    <div class="relative overflow-hidden aspect-[3/4]">
-                        <img src="images/item2.jpg" 
-                             onerror="this.src='https://images.unsplash.com/photo-1551488852-0801751ac233?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
-                             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="Baggy Jeans">
-                        <div class="absolute top-2 right-2 bg-white text-black text-xs font-bold px-2 py-1">Y2K</div>
-                    </div>
-                    <div class="p-6">
-                        <h3 class="text-xl font-bold mb-2">WIDE SILHOUETTE DENIM</h3>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-400">¥12,000</span>
-                            <a href="https://jp.mercari.com/user/profile/532695058?utm_medium=share&utm_source=ios" target="_blank" class="text-noah-green hover:text-white uppercase text-sm font-bold border-b border-noah-green pb-1">Buy on Mercari <i class="fas fa-external-link-alt ml-1"></i></a>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Product Card 3 -->
-                <div class="group border border-gray-800 bg-noah-black hover:border-noah-green transition duration-300">
-                    <div class="relative overflow-hidden aspect-[3/4]">
-                        <img src="images/item3.jpg" 
-                             onerror="this.src='https://images.unsplash.com/photo-1591047139829-d91aecb6caea?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
-                             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="Jacket">
-                    </div>
-                    <div class="p-6">
-                        <h3 class="text-xl font-bold mb-2">TECH NYLON JACKET</h3>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-400">¥15,800</span>
-                            <a href="https://jp.mercari.com/user/profile/532695058?utm_medium=share&utm_source=ios" target="_blank" class="text-noah-green hover:text-white uppercase text-sm font-bold border-b border-noah-green pb-1">Buy on Mercari <i class="fas fa-external-link-alt ml-1"></i></a>
-                        </div>
-                    </div>
-                </div>
+            <!-- Shop Grid (Populated by JS) -->
+            <div id="shop-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Loading State / Content populated by JS -->
+                <div class="col-span-full text-center text-gray-500 py-12">Loading items...</div>
             </div>
             
             <div class="text-center mt-12">
@@ -289,54 +593,29 @@
             </div>
         </section>
 
-        <!-- PAGE 4: LOOKBOOK -->
-        <section id="lookbook" class="page-section hidden max-w-7xl mx-auto px-4 py-16">
-            <h2 class="text-6xl font-display font-bold text-center mb-12 stroke-text">GALLERY</h2>
+        <!-- PAGE 4: STYLEMODEL (Formerly Lookbook) -->
+        <section id="stylemodel" class="page-section hidden max-w-7xl mx-auto px-4 py-16">
+            <h2 class="text-6xl font-display font-bold text-center mb-12 stroke-text">STYLE MODEL</h2>
             
-            <!-- Masonry-style Layout -->
-            <div class="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4">
-                <div class="relative group">
-                    <img src="images/look1.jpg" 
-                         onerror="this.src='https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
-                         class="w-full h-auto border border-transparent group-hover:border-noah-green transition">
-                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                        <span class="text-noah-green font-bold text-xl">STYLE 01</span>
-                    </div>
-                </div>
-                
-                <div class="relative group">
-                    <img src="images/look2.jpg" 
-                         onerror="this.src='https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
-                         class="w-full h-auto border border-transparent group-hover:border-noah-green transition">
-                </div>
+            <!-- ADMIN ADD PHOTO FORM -->
+            <div class="admin-panel max-w-2xl mx-auto mb-12">
+                <h3 class="text-noah-green font-bold mb-4"><i class="fas fa-camera"></i> ADD STYLE PHOTO</h3>
+                <form id="style-form" onsubmit="event.preventDefault(); addItem('style');" class="space-y-4">
+                    <input type="text" id="style-image" placeholder="Photo URL (Right click image -> Copy Image Address)" class="bg-black border border-gray-700 p-2 w-full text-white">
+                    <input type="text" id="style-label" placeholder="Label (Optional, e.g. STYLE 01)" class="bg-black border border-gray-700 p-2 w-full text-white">
+                    <button type="submit" class="bg-noah-green text-black font-bold py-2 px-4 w-full hover:bg-white transition">ADD TO STYLE MODEL</button>
+                </form>
+            </div>
 
-                <div class="relative group">
-                    <img src="images/look3.jpg" 
-                         onerror="this.src='https://images.unsplash.com/photo-1485230946086-21e788345f3d?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
-                         class="w-full h-auto border border-transparent group-hover:border-noah-green transition">
-                </div>
-
-                <div class="relative group">
-                    <img src="images/look4.jpg" 
-                         onerror="this.src='https://images.unsplash.com/photo-1503342394128-c104d54dba01?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
-                         class="w-full h-auto border border-transparent group-hover:border-noah-green transition">
-                </div>
-                
-                <div class="relative group">
-                    <img src="images/look5.jpg" 
-                         onerror="this.src='https://images.unsplash.com/photo-1544441893-675973e31985?q=80&w=600&auto=format&fit=crop'; this.onerror=null;"
-                         class="w-full h-auto border border-transparent group-hover:border-noah-green transition">
-                     <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                        <span class="text-noah-green font-bold text-xl">STYLE 02</span>
-                    </div>
-                </div>
+            <!-- Masonry-style Layout (Populated by JS) -->
+            <div id="style-grid" class="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4">
+                 <div class="text-center text-gray-500 py-12 w-full">Loading gallery...</div>
             </div>
         </section>
 
         <!-- PAGE 5: CONTACT -->
         <section id="contact" class="page-section hidden max-w-2xl mx-auto px-4 py-16">
             <div class="border border-gray-800 bg-noah-black/50 p-8 md:p-12 relative overflow-hidden">
-                <!-- Decorative element -->
                 <div class="absolute top-0 right-0 w-20 h-20 border-t-2 border-r-2 border-noah-green"></div>
                 
                 <h2 class="text-4xl font-display font-bold mb-4 text-center">GET IN TOUCH</h2>
@@ -345,47 +624,32 @@
                     <a href="mailto:longshus32@gmail.com" class="text-noah-green font-bold text-xl hover:underline">longshus32@gmail.com</a>
                 </p>
                 
-                <form action="mailto:longshus32@gmail.com" method="post" enctype="text/plain" class="space-y-6">
-                    <div>
-                        <label class="block text-sm font-bold mb-2 text-gray-400">NAME</label>
-                        <input type="text" name="name" class="w-full bg-black border-2 border-gray-700 p-3 text-white focus:border-noah-green focus:outline-none transition-colors" placeholder="YOUR NAME">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-bold mb-2 text-gray-400">EMAIL</label>
-                        <input type="email" name="email" class="w-full bg-black border-2 border-gray-700 p-3 text-white focus:border-noah-green focus:outline-none transition-colors" placeholder="YOUR EMAIL">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-bold mb-2 text-gray-400">MESSAGE</label>
-                        <textarea rows="4" name="message" class="w-full bg-black border-2 border-gray-700 p-3 text-white focus:border-noah-green focus:outline-none transition-colors" placeholder="MESSAGE..."></textarea>
-                    </div>
-                    <button type="submit" class="w-full btn-primary py-4 font-bold text-lg uppercase">
-                        SEND EMAIL
-                    </button>
-                </form>
-
                 <div class="mt-12 pt-8 border-t border-gray-800">
                     <h3 class="text-center text-lg mb-6 font-display">FOLLOW US</h3>
                     <div class="flex justify-center space-x-6 md:space-x-8">
-                        <!-- Instagram -->
                         <a href="https://www.instagram.com/_n0qh_official?igsh=MWo3ZTc1emZpbXJuYg%3D%3D&utm_source=qr" target="_blank" class="group flex flex-col items-center">
                             <div class="w-12 h-12 flex items-center justify-center border border-gray-600 rounded-full group-hover:border-noah-green group-hover:text-noah-green transition-all">
                                 <i class="fab fa-instagram text-2xl"></i>
                             </div>
                             <span class="text-xs mt-2 text-gray-500 group-hover:text-noah-green">INSTAGRAM</span>
                         </a>
-                        <!-- TikTok -->
-                        <a href="https://www.tiktok.com/@satoudethu?_r=1&_t=ZS-928M49gtzLr" target="_blank" class="group flex flex-col items-center">
+                        <a href="https://www.tiktok.com/@n0qhofficial?_r=1&_t=ZS-928fDtTlRcm" target="_blank" class="group flex flex-col items-center">
                             <div class="w-12 h-12 flex items-center justify-center border border-gray-600 rounded-full group-hover:border-noah-green group-hover:text-noah-green transition-all">
                                 <i class="fab fa-tiktok text-2xl"></i>
                             </div>
                             <span class="text-xs mt-2 text-gray-500 group-hover:text-noah-green">TIKTOK</span>
                         </a>
-                        <!-- Mercari -->
                         <a href="https://jp.mercari.com/user/profile/532695058?utm_medium=share&utm_source=ios" target="_blank" class="group flex flex-col items-center">
                             <div class="w-12 h-12 flex items-center justify-center border border-gray-600 rounded-full group-hover:border-noah-green group-hover:text-noah-green transition-all">
                                 <i class="fas fa-shopping-bag text-2xl"></i>
                             </div>
                             <span class="text-xs mt-2 text-gray-500 group-hover:text-noah-green">MERCARI</span>
+                        </a>
+                        <a href="https://n0qh.base.shop/" target="_blank" class="group flex flex-col items-center">
+                            <div class="w-12 h-12 flex items-center justify-center border border-gray-600 rounded-full group-hover:border-noah-green group-hover:text-noah-green transition-all">
+                                <i class="fas fa-store text-2xl"></i>
+                            </div>
+                            <span class="text-xs mt-2 text-gray-500 group-hover:text-noah-green">BASE SHOP</span>
                         </a>
                     </div>
                 </div>
@@ -399,11 +663,13 @@
         <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center">
             <div class="text-2xl font-display font-bold text-white mb-4 md:mb-0">NOAH</div>
             <div class="text-gray-600 text-sm">
-                &copy; 2024 NOAH STORE. ALL RIGHTS RESERVED.
+                &copy; 2025 NOAH STORE. ALL RIGHTS RESERVED.
             </div>
-            <div class="flex space-x-6 mt-4 md:mt-0 text-gray-500 text-sm">
-                <a href="#" class="hover:text-noah-green">PRIVACY</a>
-                <a href="#" class="hover:text-noah-green">TERMS</a>
+            <div class="flex items-center space-x-6 mt-4 md:mt-0 text-gray-500 text-sm">
+                <!-- Admin Toggle Button -->
+                <button onclick="realToggleAdmin()" class="text-gray-700 hover:text-noah-green transition" title="Admin Access">
+                    <i class="fas fa-lock"></i>
+                </button>
             </div>
         </div>
     </footer>
@@ -429,34 +695,24 @@
 
         // Page Switching Logic
         function switchPage(pageId) {
-            // Hide all sections
             const sections = document.querySelectorAll('.page-section');
             sections.forEach(section => {
                 section.classList.add('hidden');
             });
-
-            // Show selected section
             const selectedSection = document.getElementById(pageId);
-            selectedSection.classList.remove('hidden');
+            if(selectedSection) selectedSection.classList.remove('hidden');
 
-            // Update Navigation Active State
             const navLinks = document.querySelectorAll('.nav-link');
             navLinks.forEach(link => {
                 link.classList.remove('active');
-                // Simple logic to highlight based on text content (optional refinement)
-                if(link.textContent.toLowerCase() === pageId) {
+                if(link.textContent.replace(/\s/g,'').toLowerCase() === pageId) {
                     link.classList.add('active');
                 }
             });
-
-            // Scroll to top
             window.scrollTo(0, 0);
-
-            // Close mobile menu if open
             document.getElementById('mobile-menu').classList.add('hidden');
         }
 
-        // Custom Tailwind Config for marquee animation
         tailwind.config.theme.extend.keyframes = {
             marquee: {
                 '0%': { transform: 'translateX(0%)' },
