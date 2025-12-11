@@ -259,9 +259,10 @@
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
                         const ctx = canvas.getContext('2d');
-                        // Max dimensions to keep Firestore document size small
-                        const MAX_WIDTH = 800;
-                        const MAX_HEIGHT = 800;
+                        // Max dimensions increased to allow higher quality
+                        // Note: Firestore has 1MB limit per doc, so we must balance size vs quality
+                        const MAX_WIDTH = 2048;
+                        const MAX_HEIGHT = 2048;
                         let width = img.width;
                         let height = img.height;
 
@@ -280,8 +281,8 @@
                         canvas.width = width;
                         canvas.height = height;
                         ctx.drawImage(img, 0, 0, width, height);
-                        // Convert to jpeg with 0.7 quality to save space
-                        resolve(canvas.toDataURL('image/jpeg', 0.7)); 
+                        // Convert to jpeg with 0.6 quality to keep file size under 1MB even at higher resolution
+                        resolve(canvas.toDataURL('image/jpeg', 0.6)); 
                     };
                     img.src = event.target.result;
                 };
@@ -302,9 +303,10 @@
                     const tag = document.getElementById('shop-tag').value;
                     const link = document.getElementById('shop-link').value;
                     
-                    if(!title || fileInput.files.length === 0) return alert("Title and Image are required");
+                    // CHANGED: Only Image is required now. Title is optional.
+                    if(fileInput.files.length === 0) return alert("Image is required");
 
-                    // Show loading state (simple alert for now or update UI text)
+                    // Show loading state
                     const submitBtn = document.querySelector('#shop-form button[type="submit"]');
                     const originalText = submitBtn.innerText;
                     submitBtn.innerText = "Processing Image...";
@@ -314,13 +316,20 @@
                         const image = await resizeImage(fileInput.files[0]);
                         
                         await addDoc(collection(db, SHOP_COLLECTION), {
-                            title, price, image, tag, link, 
+                            title: title || "", // Allow empty title
+                            price: price || "", // Allow empty price
+                            image, 
+                            tag: tag || "",
+                            link: link || "https://jp.mercari.com/user/profile/532695058?utm_medium=share&utm_source=ios", 
                             isRecommended: false, 
                             createdAt: Date.now()
                         });
                         
                         document.getElementById('shop-form').reset();
                         alert("Item Added!");
+                    } catch (err) {
+                        console.error("Upload error details:", err);
+                        alert("Error uploading image. It might be too large even after resizing.");
                     } finally {
                         submitBtn.innerText = originalText;
                         submitBtn.disabled = false;
@@ -341,11 +350,16 @@
                         const image = await resizeImage(fileInput.files[0]);
 
                         await addDoc(collection(db, STYLE_COLLECTION), {
-                            image, label, createdAt: Date.now()
+                            image, 
+                            label: label || "", 
+                            createdAt: Date.now()
                         });
 
                         document.getElementById('style-form').reset();
                         alert("Style Added!");
+                    } catch (err) {
+                        console.error("Upload error details:", err);
+                        alert("Error uploading image. It might be too large.");
                     } finally {
                         submitBtn.innerText = originalText;
                         submitBtn.disabled = false;
@@ -635,12 +649,12 @@
                 <h3 class="text-noah-green font-bold mb-4"><i class="fas fa-plus-circle"></i> ADD NEW ITEM</h3>
                 <form id="shop-form" onsubmit="event.preventDefault(); addItem('shop');" class="space-y-4">
                     <div class="grid grid-cols-2 gap-4">
-                        <input type="text" id="shop-title" placeholder="Item Name" class="bg-black border border-gray-700 p-2 w-full text-white">
-                        <input type="text" id="shop-price" placeholder="Price (e.g. ¥5,000)" class="bg-black border border-gray-700 p-2 w-full text-white">
+                        <input type="text" id="shop-title" placeholder="Item Name (Optional)" class="bg-black border border-gray-700 p-2 w-full text-white">
+                        <input type="text" id="shop-price" placeholder="Price (Optional)" class="bg-black border border-gray-700 p-2 w-full text-white">
                     </div>
                     <!-- CHANGED: File input instead of Text URL -->
                     <div class="relative">
-                        <label class="block text-xs text-gray-500 mb-1">Upload Image (Max 800px resized auto)</label>
+                        <label class="block text-xs text-gray-500 mb-1">Upload Image (Max 2048px high-res)</label>
                         <input type="file" id="shop-image-file" accept="image/*" class="bg-black border border-gray-700 p-2 w-full text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-noah-green file:text-black hover:file:bg-white">
                     </div>
                     <input type="text" id="shop-tag" placeholder="Tag (e.g. Y2K, VINTAGE)" class="bg-black border border-gray-700 p-2 w-full text-white">
