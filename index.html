@@ -250,6 +250,46 @@
             });
         };
 
+        // Helper: Resize Image
+        const resizeImage = (file) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        // Max dimensions to keep Firestore document size small
+                        const MAX_WIDTH = 800;
+                        const MAX_HEIGHT = 800;
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > height) {
+                            if (width > MAX_WIDTH) {
+                                height *= MAX_WIDTH / width;
+                                width = MAX_WIDTH;
+                            }
+                        } else {
+                            if (height > MAX_HEIGHT) {
+                                width *= MAX_HEIGHT / height;
+                                height = MAX_HEIGHT;
+                            }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+                        // Convert to jpeg with 0.7 quality to save space
+                        resolve(canvas.toDataURL('image/jpeg', 0.7)); 
+                    };
+                    img.src = event.target.result;
+                };
+                reader.onerror = error => reject(error);
+                reader.readAsDataURL(file);
+            });
+        };
+
         // Actions
         window.addItem = async (type) => {
             if (!currentUser) return;
@@ -258,32 +298,58 @@
                 if (type === 'shop') {
                     const title = document.getElementById('shop-title').value;
                     const price = document.getElementById('shop-price').value;
-                    const image = document.getElementById('shop-image').value;
+                    const fileInput = document.getElementById('shop-image-file');
                     const tag = document.getElementById('shop-tag').value;
                     const link = document.getElementById('shop-link').value;
                     
-                    if(!title || !image) return alert("Title and Image URL are required");
+                    if(!title || fileInput.files.length === 0) return alert("Title and Image are required");
 
-                    await addDoc(collection(db, SHOP_COLLECTION), {
-                        title, price, image, tag, link, 
-                        isRecommended: false, // Default to not recommended
-                        createdAt: Date.now()
-                    });
-                    
-                    document.getElementById('shop-form').reset();
-                    alert("Item Added!");
+                    // Show loading state (simple alert for now or update UI text)
+                    const submitBtn = document.querySelector('#shop-form button[type="submit"]');
+                    const originalText = submitBtn.innerText;
+                    submitBtn.innerText = "Processing Image...";
+                    submitBtn.disabled = true;
+
+                    try {
+                        const image = await resizeImage(fileInput.files[0]);
+                        
+                        await addDoc(collection(db, SHOP_COLLECTION), {
+                            title, price, image, tag, link, 
+                            isRecommended: false, 
+                            createdAt: Date.now()
+                        });
+                        
+                        document.getElementById('shop-form').reset();
+                        alert("Item Added!");
+                    } finally {
+                        submitBtn.innerText = originalText;
+                        submitBtn.disabled = false;
+                    }
+
                 } else if (type === 'style') {
-                    const image = document.getElementById('style-image').value;
+                    const fileInput = document.getElementById('style-image-file');
                     const label = document.getElementById('style-label').value;
 
-                    if(!image) return alert("Image URL is required");
+                    if(fileInput.files.length === 0) return alert("Image is required");
+                    
+                    const submitBtn = document.querySelector('#style-form button[type="submit"]');
+                    const originalText = submitBtn.innerText;
+                    submitBtn.innerText = "Processing Image...";
+                    submitBtn.disabled = true;
 
-                    await addDoc(collection(db, STYLE_COLLECTION), {
-                        image, label, createdAt: Date.now()
-                    });
+                    try {
+                        const image = await resizeImage(fileInput.files[0]);
 
-                    document.getElementById('style-form').reset();
-                    alert("Style Added!");
+                        await addDoc(collection(db, STYLE_COLLECTION), {
+                            image, label, createdAt: Date.now()
+                        });
+
+                        document.getElementById('style-form').reset();
+                        alert("Style Added!");
+                    } finally {
+                        submitBtn.innerText = originalText;
+                        submitBtn.disabled = false;
+                    }
                 }
             } catch (e) {
                 console.error(e);
@@ -572,7 +638,11 @@
                         <input type="text" id="shop-title" placeholder="Item Name" class="bg-black border border-gray-700 p-2 w-full text-white">
                         <input type="text" id="shop-price" placeholder="Price (e.g. ¥5,000)" class="bg-black border border-gray-700 p-2 w-full text-white">
                     </div>
-                    <input type="text" id="shop-image" placeholder="Image URL (Right click image -> Copy Image Address)" class="bg-black border border-gray-700 p-2 w-full text-white">
+                    <!-- CHANGED: File input instead of Text URL -->
+                    <div class="relative">
+                        <label class="block text-xs text-gray-500 mb-1">Upload Image (Max 800px resized auto)</label>
+                        <input type="file" id="shop-image-file" accept="image/*" class="bg-black border border-gray-700 p-2 w-full text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-noah-green file:text-black hover:file:bg-white">
+                    </div>
                     <input type="text" id="shop-tag" placeholder="Tag (e.g. Y2K, VINTAGE)" class="bg-black border border-gray-700 p-2 w-full text-white">
                     <input type="text" id="shop-link" value="https://jp.mercari.com/user/profile/532695058?utm_medium=share&utm_source=ios" placeholder="Mercari Link" class="bg-black border border-gray-700 p-2 w-full text-white">
                     <button type="submit" class="bg-noah-green text-black font-bold py-2 px-4 w-full hover:bg-white transition">ADD TO SHOP</button>
@@ -601,7 +671,11 @@
             <div class="admin-panel max-w-2xl mx-auto mb-12">
                 <h3 class="text-noah-green font-bold mb-4"><i class="fas fa-camera"></i> ADD STYLE PHOTO</h3>
                 <form id="style-form" onsubmit="event.preventDefault(); addItem('style');" class="space-y-4">
-                    <input type="text" id="style-image" placeholder="Photo URL (Right click image -> Copy Image Address)" class="bg-black border border-gray-700 p-2 w-full text-white">
+                    <!-- CHANGED: File input instead of Text URL -->
+                    <div class="relative">
+                        <label class="block text-xs text-gray-500 mb-1">Upload Photo</label>
+                        <input type="file" id="style-image-file" accept="image/*" class="bg-black border border-gray-700 p-2 w-full text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-noah-green file:text-black hover:file:bg-white">
+                    </div>
                     <input type="text" id="style-label" placeholder="Label (Optional, e.g. STYLE 01)" class="bg-black border border-gray-700 p-2 w-full text-white">
                     <button type="submit" class="bg-noah-green text-black font-bold py-2 px-4 w-full hover:bg-white transition">ADD TO STYLE MODEL</button>
                 </form>
