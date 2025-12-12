@@ -15,7 +15,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, setDoc, doc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         
@@ -50,7 +50,6 @@
 
         const SHOP_COLLECTION = `artifacts/${appId}/public/data/shop_items`;
         const STYLE_COLLECTION = `artifacts/${appId}/public/data/style_model`;
-        const SETTINGS_COLLECTION = `artifacts/${appId}/public/data/site_settings`;
 
         const seedData = {
             shop: [
@@ -121,25 +120,6 @@
                     renderStyle(items, false);
                 }
             }, (error) => console.error("Style sync error:", error));
-
-            // Settings (Logo) Listener
-            onSnapshot(doc(db, SETTINGS_COLLECTION, 'config'), (doc) => {
-                if (doc.exists()) {
-                    const data = doc.data();
-                    if (data.logoImage) {
-                        updateLogoDisplay(data.logoImage);
-                    }
-                }
-            });
-        }
-
-        // UI Update Functions
-        function updateLogoDisplay(base64Image) {
-            const headerLogo = document.getElementById('header-logo-img');
-            const heroLogo = document.getElementById('hero-logo-img');
-            
-            if (headerLogo) headerLogo.src = base64Image;
-            if (heroLogo) heroLogo.src = base64Image;
         }
 
         window.renderShop = (items, isVirtual) => {
@@ -168,13 +148,15 @@
                     `;
                 }
 
+                // Simplified Card Structure for Performance
                 card.innerHTML = `
                     ${adminControls}
-                    <a href="${item.link}" target="_blank" class="block relative overflow-hidden aspect-[3/4]">
+                    <a href="${item.link}" target="_blank" class="block relative w-full pt-[133%] overflow-hidden bg-gray-900">
                         <img src="${item.image}" 
+                             loading="lazy"
                              onerror="this.src='${fallbackImg}'; this.onerror=null;"
-                             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="${item.title}">
-                        ${item.tag ? `<div class="absolute top-2 right-2 bg-noah-green text-black text-xs font-bold px-2 py-1">${item.tag}</div>` : ''}
+                             class="absolute top-0 left-0 w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="${item.title}">
+                        ${item.tag ? `<div class="absolute top-2 right-2 bg-noah-green text-black text-xs font-bold px-2 py-1 z-10">${item.tag}</div>` : ''}
                     </a>
                     <div class="p-6">
                         <a href="${item.link}" target="_blank" class="block">
@@ -207,10 +189,11 @@
                 const fallbackImg = 'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?q=80&w=600&auto=format&fit=crop';
                 
                 card.innerHTML = `
-                    <a href="${item.link}" target="_blank" class="block relative overflow-hidden aspect-square">
+                    <a href="${item.link}" target="_blank" class="block relative w-full pt-[100%] overflow-hidden bg-gray-900">
                         <img src="${item.image}" 
+                             loading="lazy"
                              onerror="this.src='${fallbackImg}'; this.onerror=null;"
-                             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="${item.title}">
+                             class="absolute top-0 left-0 w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="${item.title}">
                     </a>
                     <div class="p-4">
                         <h4 class="text-sm font-bold mb-1 truncate text-white group-hover:text-noah-green">${item.title}</h4>
@@ -242,10 +225,11 @@
 
                 div.innerHTML += `
                     <img src="${item.image}" 
+                         loading="lazy"
                          onerror="this.src='${fallbackImg}'; this.onerror=null;"
-                         class="w-full h-auto border border-transparent group-hover:border-noah-green transition">
+                         class="w-full h-auto border border-transparent group-hover:border-noah-green transition bg-gray-900 min-h-[100px]">
                     ${item.label ? `
-                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center pointer-events-none">
                         <span class="text-noah-green font-bold text-xl">${item.label}</span>
                     </div>` : ''}
                 `;
@@ -254,6 +238,7 @@
         };
 
         // Helper: Resize Image
+        // OPTIMIZED: Aggressive compression for maximum compatibility and speed
         const resizeImage = (file) => {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -262,9 +247,10 @@
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
                         const ctx = canvas.getContext('2d');
-                        // 1024px is a safe balance
-                        const MAX_WIDTH = 1024;
-                        const MAX_HEIGHT = 1024;
+                        
+                        // 400px is sufficient for mobile/web listing, very light
+                        const MAX_WIDTH = 400;
+                        const MAX_HEIGHT = 400;
                         let width = img.width;
                         let height = img.height;
 
@@ -283,8 +269,9 @@
                         canvas.width = width;
                         canvas.height = height;
                         ctx.drawImage(img, 0, 0, width, height);
-                        // Quality 0.5 is sufficient for web, keeps size small
-                        resolve(canvas.toDataURL('image/jpeg', 0.5)); 
+                        
+                        // Compress to 0.5 quality JPEG
+                        resolve(canvas.toDataURL('image/jpeg', 0.5));
                     };
                     img.onerror = reject;
                     img.src = event.target.result;
@@ -292,6 +279,44 @@
                 reader.onerror = reject;
                 reader.readAsDataURL(file);
             });
+        };
+
+        // Helper: Optimistic UI Renderer
+        const renderOptimisticItem = (type, imageData, title, price) => {
+            const container = document.getElementById(type === 'shop' ? 'shop-grid' : 'style-grid');
+            if (!container) return;
+
+            const tempDiv = document.createElement('div');
+            tempDiv.className = "animate-pulse opacity-75 relative";
+
+            if (type === 'shop') {
+                tempDiv.className += " border border-noah-green bg-noah-black";
+                tempDiv.innerHTML = `
+                    <div class="block relative w-full pt-[133%] overflow-hidden bg-gray-900">
+                        <img src="${imageData}" class="absolute top-0 left-0 w-full h-full object-cover">
+                        <div class="absolute inset-0 flex items-center justify-center bg-black/50">
+                            <span class="text-noah-green font-bold"><i class="fas fa-spinner fa-spin mr-2"></i>UPLOADING...</span>
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold mb-2 text-white">${title || 'New Item'}</h3>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-400">${price || ''}</span>
+                        </div>
+                    </div>
+                `;
+            } else {
+                tempDiv.className += " mb-4 break-inside-avoid";
+                tempDiv.innerHTML = `
+                    <div class="relative">
+                        <img src="${imageData}" class="w-full h-auto border border-noah-green bg-gray-900">
+                        <div class="absolute inset-0 flex items-center justify-center bg-black/50">
+                            <span class="text-noah-green font-bold"><i class="fas fa-spinner fa-spin"></i></span>
+                        </div>
+                    </div>
+                `;
+            }
+            container.insertBefore(tempDiv, container.firstChild);
         };
 
         window.addItem = async (type) => {
@@ -309,10 +334,13 @@
 
                     const submitBtn = document.querySelector('#shop-form button[type="submit"]');
                     const originalText = submitBtn.innerText;
-                    submitBtn.innerText = "Uploading...";
+                    submitBtn.innerText = "Processing...";
                     submitBtn.disabled = true;
 
                     try {
+                        const localPreviewURL = URL.createObjectURL(fileInput.files[0]);
+                        renderOptimisticItem('shop', localPreviewURL, title, price);
+
                         const image = await resizeImage(fileInput.files[0]);
                         
                         await addDoc(collection(db, SHOP_COLLECTION), {
@@ -326,10 +354,9 @@
                         });
                         
                         document.getElementById('shop-form').reset();
-                        alert("Item Added Successfully!");
                     } catch (err) {
                         console.error("Upload error:", err);
-                        alert("Failed to upload. The image might be too complex.");
+                        alert("Failed to upload. Please try again.");
                     } finally {
                         submitBtn.innerText = originalText;
                         submitBtn.disabled = false;
@@ -343,10 +370,13 @@
                     
                     const submitBtn = document.querySelector('#style-form button[type="submit"]');
                     const originalText = submitBtn.innerText;
-                    submitBtn.innerText = "Uploading...";
+                    submitBtn.innerText = "Processing...";
                     submitBtn.disabled = true;
 
                     try {
+                        const localPreviewURL = URL.createObjectURL(fileInput.files[0]);
+                        renderOptimisticItem('style', localPreviewURL);
+
                         const image = await resizeImage(fileInput.files[0]);
 
                         await addDoc(collection(db, STYLE_COLLECTION), {
@@ -356,10 +386,9 @@
                         });
 
                         document.getElementById('style-form').reset();
-                        alert("Style Added Successfully!");
                     } catch (err) {
                         console.error("Upload error:", err);
-                        alert("Failed to upload. The image might be too complex.");
+                        alert("Failed to upload.");
                     } finally {
                         submitBtn.innerText = originalText;
                         submitBtn.disabled = false;
@@ -368,38 +397,6 @@
             } catch (e) {
                 console.error(e);
                 alert("Error: " + e.message);
-            }
-        };
-
-        window.updateSiteLogo = async () => {
-            if (!currentUser) return;
-            const fileInput = document.getElementById('logo-image-file');
-            
-            if(fileInput.files.length === 0) return alert("Please select a logo image.");
-            
-            const submitBtn = document.querySelector('#logo-form button[type="submit"]');
-            const originalText = submitBtn.innerText;
-            submitBtn.innerText = "Updating Logo...";
-            submitBtn.disabled = true;
-
-            try {
-                // Resize logo to a reasonable size (512x512 max) to save space and load fast
-                const image = await resizeImage(fileInput.files[0]);
-                
-                // Save to Firestore
-                await setDoc(doc(db, SETTINGS_COLLECTION, 'config'), {
-                    logoImage: image,
-                    updatedAt: Date.now()
-                });
-                
-                document.getElementById('logo-form').reset();
-                alert("Logo Updated Successfully!");
-            } catch (err) {
-                console.error("Upload error:", err);
-                alert("Failed to update logo.");
-            } finally {
-                submitBtn.innerText = originalText;
-                submitBtn.disabled = false;
             }
         };
 
@@ -440,7 +437,7 @@
                  if (pass === 'noah') {
                      localStorage.setItem('noah_admin', 'true');
                      window.isAdmin = true;
-                     alert("Admin Mode: ON\nYou can now add items and update the logo.");
+                     alert("Admin Mode: ON");
                  } else {
                      alert("Invalid Password");
                  }
@@ -556,10 +553,8 @@
     <nav class="fixed top-0 w-full z-50 bg-noah-black/90 backdrop-blur-sm border-b border-gray-800">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-20">
-                <!-- LOGO SECTION MODIFIED -->
+                <!-- LOGO SECTION (Simplified Text Only) -->
                 <div class="flex-shrink-0 cursor-pointer flex items-center gap-3" onclick="switchPage('home')">
-                    <!-- Dynamic Logo with ID for JS Update -->
-                    <img id="header-logo-img" src="https://via.placeholder.com/150/000000/FFFFFF?text=LOGO" alt="NOAH Logo" class="h-10 w-10 rounded-full border border-gray-700 object-cover bg-white">
                     <div class="flex flex-col">
                         <span class="text-3xl font-bold font-display tracking-widest text-white glitch-hover leading-none">NOAH</span>
                         <span class="text-[0.6rem] text-noah-green tracking-[0.2em] font-bold">VINTAGE CLOTHING STORE</span>
@@ -613,9 +608,11 @@
                 
                 <div class="relative z-10 text-center px-4">
                     <h2 class="text-noah-green text-lg md:text-xl font-bold tracking-[0.5em] mb-4">EST. 2025 TOKYO</h2>
+                    
                     <h1 class="text-6xl md:text-9xl font-display font-bold text-white mb-6 border-2 border-white p-4 inline-block backdrop-blur-sm">
                         NOAH
                     </h1>
+                    
                     <p class="text-gray-300 text-xl mb-8 max-w-2xl mx-auto font-light">
                         DIGITAL NOSTALGIA & STREET CULTURE
                     </p>
@@ -633,14 +630,13 @@
                 </div>
             </div>
 
-            <!-- Recommended Section (New) -->
+            <!-- Recommended Section -->
             <div class="max-w-7xl mx-auto px-4 py-16">
                 <div class="flex items-center justify-between mb-8">
                     <h3 class="text-2xl md:text-3xl font-display font-bold text-white border-l-4 border-noah-green pl-4">RECOMMENDED PICKUPS</h3>
                     <button onclick="switchPage('shop')" class="text-sm text-gray-400 hover:text-noah-green transition">VIEW ALL <i class="fas fa-arrow-right ml-1"></i></button>
                 </div>
                 
-                <!-- This grid is populated by JS with items where isRecommended = true -->
                 <div id="home-recommended-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                     <div class="col-span-full text-center text-gray-600 py-8">Loading recommendations...</div>
                 </div>
@@ -678,19 +674,6 @@
 
             <!-- ADMIN PANEL -->
             <div class="admin-panel max-w-2xl mx-auto mb-12 space-y-8">
-                
-                <!-- NEW: SITE SETTINGS (LOGO) -->
-                <div class="border-b border-gray-700 pb-8">
-                    <h3 class="text-noah-green font-bold mb-4"><i class="fas fa-image"></i> UPDATE SITE LOGO</h3>
-                    <form id="logo-form" onsubmit="event.preventDefault(); updateSiteLogo();" class="space-y-4">
-                        <div class="relative">
-                            <label class="block text-xs text-gray-500 mb-1">Upload Logo Image (Square recommended)</label>
-                            <input type="file" id="logo-image-file" accept="image/*" class="bg-black border border-gray-700 p-2 w-full text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-noah-green file:text-black hover:file:bg-white">
-                        </div>
-                        <button type="submit" class="bg-white text-black font-bold py-2 px-4 w-full hover:bg-noah-green transition">UPDATE LOGO</button>
-                    </form>
-                </div>
-
                 <!-- ADD NEW ITEM -->
                 <div>
                     <h3 class="text-noah-green font-bold mb-4"><i class="fas fa-plus-circle"></i> ADD NEW ITEM</h3>
@@ -700,13 +683,12 @@
                             <input type="text" id="shop-price" placeholder="Price (Optional)" class="bg-black border border-gray-700 p-2 w-full text-white">
                         </div>
                         <div class="relative">
-                            <label class="block text-xs text-gray-500 mb-1">Upload Image (Resized for performance)</label>
+                            <label class="block text-xs text-gray-500 mb-1">Upload Image (Compacting for Speed)</label>
                             <input type="file" id="shop-image-file" accept="image/*" class="bg-black border border-gray-700 p-2 w-full text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-noah-green file:text-black hover:file:bg-white">
                         </div>
                         <input type="text" id="shop-tag" placeholder="Tag (e.g. Y2K, VINTAGE)" class="bg-black border border-gray-700 p-2 w-full text-white">
                         <input type="text" id="shop-link" value="https://jp.mercari.com/user/profile/532695058?utm_medium=share&utm_source=ios" placeholder="Mercari Link" class="bg-black border border-gray-700 p-2 w-full text-white">
                         <button type="submit" class="bg-noah-green text-black font-bold py-2 px-4 w-full hover:bg-white transition">ADD TO SHOP</button>
-                        <p class="text-xs text-gray-500 mt-2">* Added items will appear in the list below. Click the <i class="fas fa-star text-yellow-500"></i> icon on the card to feature it on the Home page.</p>
                     </form>
                 </div>
             </div>
