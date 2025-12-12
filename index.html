@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NOAH | Street & Y2K Vintage Store</title>
+    <title>NOAH | VINTAGE CLOTHING STORE</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome for Icons -->
@@ -14,28 +14,21 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        // Fixed: Imported signInWithCustomToken
         import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, setDoc, doc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Fixed: Consolidated config initialization
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         
-        // Initialize Firebase
-        // Fallback for standalone viewing (won't work for DB without real config)
         const app = initializeApp(firebaseConfig || {apiKey: "AIza...", authDomain: "...", projectId: "..."});
         const auth = getAuth(app);
         const db = getFirestore(app);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-        // Global State
         window.isAdmin = false;
         let currentUser = null;
 
-        // Authentication
         const initAuth = async () => {
             try {
-                // Fixed: Properly handle custom token if available in the environment
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
@@ -51,17 +44,14 @@
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
-                console.log("User authenticated:", user.uid);
-                // Only start listeners after auth is confirmed
                 initRealtimeListeners();
             }
         });
 
-        // Database Collections
         const SHOP_COLLECTION = `artifacts/${appId}/public/data/shop_items`;
         const STYLE_COLLECTION = `artifacts/${appId}/public/data/style_model`;
+        const SETTINGS_COLLECTION = `artifacts/${appId}/public/data/site_settings`;
 
-        // Initial Data Seeding
         const seedData = {
             shop: [
                 {
@@ -101,7 +91,6 @@
             ]
         };
 
-        // Listeners
         function initRealtimeListeners() {
             // Shop Listener
             onSnapshot(collection(db, SHOP_COLLECTION), (snapshot) => {
@@ -113,8 +102,6 @@
                 } else if (items.length > 0) {
                     items.sort((a, b) => b.createdAt - a.createdAt);
                     renderShop(items, false);
-                    
-                    // Render Recommendations on Home
                     const recommended = items.filter(item => item.isRecommended);
                     renderHomeRecommendations(recommended, false);
                 } else {
@@ -123,7 +110,7 @@
                 }
             }, (error) => console.error("Shop sync error:", error));
 
-            // Style Model Listener
+            // Style Listener
             onSnapshot(collection(db, STYLE_COLLECTION), (snapshot) => {
                 const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 
@@ -134,9 +121,27 @@
                     renderStyle(items, false);
                 }
             }, (error) => console.error("Style sync error:", error));
+
+            // Settings (Logo) Listener
+            onSnapshot(doc(db, SETTINGS_COLLECTION, 'config'), (doc) => {
+                if (doc.exists()) {
+                    const data = doc.data();
+                    if (data.logoImage) {
+                        updateLogoDisplay(data.logoImage);
+                    }
+                }
+            });
         }
 
-        // Render Functions
+        // UI Update Functions
+        function updateLogoDisplay(base64Image) {
+            const headerLogo = document.getElementById('header-logo-img');
+            const heroLogo = document.getElementById('hero-logo-img');
+            
+            if (headerLogo) headerLogo.src = base64Image;
+            if (heroLogo) heroLogo.src = base64Image;
+        }
+
         window.renderShop = (items, isVirtual) => {
             const container = document.getElementById('shop-grid');
             if (!container) return;
@@ -148,7 +153,6 @@
                 
                 const fallbackImg = 'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?q=80&w=600&auto=format&fit=crop';
                 
-                // Admin Controls (Delete & Recommend)
                 let adminControls = '';
                 if (window.isAdmin && !isVirtual) {
                     const isRec = item.isRecommended ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-400';
@@ -196,7 +200,6 @@
             }
 
             container.innerHTML = '';
-            // Only show up to 4 items
             items.slice(0, 4).forEach(item => {
                 const card = document.createElement('div');
                 card.className = "group border border-gray-800 bg-noah-black/50 hover:border-noah-green transition duration-300";
@@ -259,10 +262,9 @@
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
                         const ctx = canvas.getContext('2d');
-                        // Max dimensions increased to allow higher quality
-                        // Note: Firestore has 1MB limit per doc, so we must balance size vs quality
-                        const MAX_WIDTH = 2048;
-                        const MAX_HEIGHT = 2048;
+                        // 1024px is a safe balance
+                        const MAX_WIDTH = 1024;
+                        const MAX_HEIGHT = 1024;
                         let width = img.width;
                         let height = img.height;
 
@@ -281,17 +283,17 @@
                         canvas.width = width;
                         canvas.height = height;
                         ctx.drawImage(img, 0, 0, width, height);
-                        // Convert to jpeg with 0.6 quality to keep file size under 1MB even at higher resolution
-                        resolve(canvas.toDataURL('image/jpeg', 0.6)); 
+                        // Quality 0.5 is sufficient for web, keeps size small
+                        resolve(canvas.toDataURL('image/jpeg', 0.5)); 
                     };
+                    img.onerror = reject;
                     img.src = event.target.result;
                 };
-                reader.onerror = error => reject(error);
+                reader.onerror = reject;
                 reader.readAsDataURL(file);
             });
         };
 
-        // Actions
         window.addItem = async (type) => {
             if (!currentUser) return;
             
@@ -303,21 +305,19 @@
                     const tag = document.getElementById('shop-tag').value;
                     const link = document.getElementById('shop-link').value;
                     
-                    // CHANGED: Only Image is required now. Title is optional.
                     if(fileInput.files.length === 0) return alert("Image is required");
 
-                    // Show loading state
                     const submitBtn = document.querySelector('#shop-form button[type="submit"]');
                     const originalText = submitBtn.innerText;
-                    submitBtn.innerText = "Processing Image...";
+                    submitBtn.innerText = "Uploading...";
                     submitBtn.disabled = true;
 
                     try {
                         const image = await resizeImage(fileInput.files[0]);
                         
                         await addDoc(collection(db, SHOP_COLLECTION), {
-                            title: title || "", // Allow empty title
-                            price: price || "", // Allow empty price
+                            title: title || "",
+                            price: price || "",
                             image, 
                             tag: tag || "",
                             link: link || "https://jp.mercari.com/user/profile/532695058?utm_medium=share&utm_source=ios", 
@@ -326,10 +326,10 @@
                         });
                         
                         document.getElementById('shop-form').reset();
-                        alert("Item Added!");
+                        alert("Item Added Successfully!");
                     } catch (err) {
-                        console.error("Upload error details:", err);
-                        alert("Error uploading image. It might be too large even after resizing.");
+                        console.error("Upload error:", err);
+                        alert("Failed to upload. The image might be too complex.");
                     } finally {
                         submitBtn.innerText = originalText;
                         submitBtn.disabled = false;
@@ -343,7 +343,7 @@
                     
                     const submitBtn = document.querySelector('#style-form button[type="submit"]');
                     const originalText = submitBtn.innerText;
-                    submitBtn.innerText = "Processing Image...";
+                    submitBtn.innerText = "Uploading...";
                     submitBtn.disabled = true;
 
                     try {
@@ -356,10 +356,10 @@
                         });
 
                         document.getElementById('style-form').reset();
-                        alert("Style Added!");
+                        alert("Style Added Successfully!");
                     } catch (err) {
-                        console.error("Upload error details:", err);
-                        alert("Error uploading image. It might be too large.");
+                        console.error("Upload error:", err);
+                        alert("Failed to upload. The image might be too complex.");
                     } finally {
                         submitBtn.innerText = originalText;
                         submitBtn.disabled = false;
@@ -367,7 +367,39 @@
                 }
             } catch (e) {
                 console.error(e);
-                alert("Error adding item: " + e.message);
+                alert("Error: " + e.message);
+            }
+        };
+
+        window.updateSiteLogo = async () => {
+            if (!currentUser) return;
+            const fileInput = document.getElementById('logo-image-file');
+            
+            if(fileInput.files.length === 0) return alert("Please select a logo image.");
+            
+            const submitBtn = document.querySelector('#logo-form button[type="submit"]');
+            const originalText = submitBtn.innerText;
+            submitBtn.innerText = "Updating Logo...";
+            submitBtn.disabled = true;
+
+            try {
+                // Resize logo to a reasonable size (512x512 max) to save space and load fast
+                const image = await resizeImage(fileInput.files[0]);
+                
+                // Save to Firestore
+                await setDoc(doc(db, SETTINGS_COLLECTION, 'config'), {
+                    logoImage: image,
+                    updatedAt: Date.now()
+                });
+                
+                document.getElementById('logo-form').reset();
+                alert("Logo Updated Successfully!");
+            } catch (err) {
+                console.error("Upload error:", err);
+                alert("Failed to update logo.");
+            } finally {
+                submitBtn.innerText = originalText;
+                submitBtn.disabled = false;
             }
         };
 
@@ -392,11 +424,6 @@
             }
         };
 
-        // Admin Toggle
-        window.toggleAdmin = () => {
-            // ... legacy placeholder
-        }
-        
         if (localStorage.getItem('noah_admin') === 'true') {
             window.isAdmin = true;
             document.body.classList.add('admin-mode');
@@ -413,7 +440,7 @@
                  if (pass === 'noah') {
                      localStorage.setItem('noah_admin', 'true');
                      window.isAdmin = true;
-                     alert("Admin Mode: ON\nGo to SHOP to select recommended items (Star icon).");
+                     alert("Admin Mode: ON\nYou can now add items and update the logo.");
                  } else {
                      alert("Invalid Password");
                  }
@@ -442,7 +469,6 @@
         }
     </script>
     <style>
-        /* Custom Styles for Y2K/Street Vibe */
         body {
             background-color: #050505;
             color: #e0e0e0;
@@ -530,8 +556,14 @@
     <nav class="fixed top-0 w-full z-50 bg-noah-black/90 backdrop-blur-sm border-b border-gray-800">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-20">
-                <div class="flex-shrink-0 cursor-pointer" onclick="switchPage('home')">
-                    <span class="text-3xl font-bold font-display tracking-widest text-white glitch-hover">NOAH</span>
+                <!-- LOGO SECTION MODIFIED -->
+                <div class="flex-shrink-0 cursor-pointer flex items-center gap-3" onclick="switchPage('home')">
+                    <!-- Dynamic Logo with ID for JS Update -->
+                    <img id="header-logo-img" src="https://via.placeholder.com/150/000000/FFFFFF?text=LOGO" alt="NOAH Logo" class="h-10 w-10 rounded-full border border-gray-700 object-cover bg-white">
+                    <div class="flex flex-col">
+                        <span class="text-3xl font-bold font-display tracking-widest text-white glitch-hover leading-none">NOAH</span>
+                        <span class="text-[0.6rem] text-noah-green tracking-[0.2em] font-bold">VINTAGE CLOTHING STORE</span>
+                    </div>
                 </div>
                 
                 <!-- Desktop Menu -->
@@ -644,24 +676,39 @@
                 <p class="text-noah-green">CLICK ITEM TO BUY ON MERCARI</p>
             </div>
 
-            <!-- ADMIN ADD ITEM FORM -->
-            <div class="admin-panel max-w-2xl mx-auto mb-12">
-                <h3 class="text-noah-green font-bold mb-4"><i class="fas fa-plus-circle"></i> ADD NEW ITEM</h3>
-                <form id="shop-form" onsubmit="event.preventDefault(); addItem('shop');" class="space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
-                        <input type="text" id="shop-title" placeholder="Item Name (Optional)" class="bg-black border border-gray-700 p-2 w-full text-white">
-                        <input type="text" id="shop-price" placeholder="Price (Optional)" class="bg-black border border-gray-700 p-2 w-full text-white">
-                    </div>
-                    <!-- CHANGED: File input instead of Text URL -->
-                    <div class="relative">
-                        <label class="block text-xs text-gray-500 mb-1">Upload Image (Max 2048px high-res)</label>
-                        <input type="file" id="shop-image-file" accept="image/*" class="bg-black border border-gray-700 p-2 w-full text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-noah-green file:text-black hover:file:bg-white">
-                    </div>
-                    <input type="text" id="shop-tag" placeholder="Tag (e.g. Y2K, VINTAGE)" class="bg-black border border-gray-700 p-2 w-full text-white">
-                    <input type="text" id="shop-link" value="https://jp.mercari.com/user/profile/532695058?utm_medium=share&utm_source=ios" placeholder="Mercari Link" class="bg-black border border-gray-700 p-2 w-full text-white">
-                    <button type="submit" class="bg-noah-green text-black font-bold py-2 px-4 w-full hover:bg-white transition">ADD TO SHOP</button>
-                    <p class="text-xs text-gray-500 mt-2">* Added items will appear in the list below. Click the <i class="fas fa-star text-yellow-500"></i> icon on the card to feature it on the Home page.</p>
-                </form>
+            <!-- ADMIN PANEL -->
+            <div class="admin-panel max-w-2xl mx-auto mb-12 space-y-8">
+                
+                <!-- NEW: SITE SETTINGS (LOGO) -->
+                <div class="border-b border-gray-700 pb-8">
+                    <h3 class="text-noah-green font-bold mb-4"><i class="fas fa-image"></i> UPDATE SITE LOGO</h3>
+                    <form id="logo-form" onsubmit="event.preventDefault(); updateSiteLogo();" class="space-y-4">
+                        <div class="relative">
+                            <label class="block text-xs text-gray-500 mb-1">Upload Logo Image (Square recommended)</label>
+                            <input type="file" id="logo-image-file" accept="image/*" class="bg-black border border-gray-700 p-2 w-full text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-noah-green file:text-black hover:file:bg-white">
+                        </div>
+                        <button type="submit" class="bg-white text-black font-bold py-2 px-4 w-full hover:bg-noah-green transition">UPDATE LOGO</button>
+                    </form>
+                </div>
+
+                <!-- ADD NEW ITEM -->
+                <div>
+                    <h3 class="text-noah-green font-bold mb-4"><i class="fas fa-plus-circle"></i> ADD NEW ITEM</h3>
+                    <form id="shop-form" onsubmit="event.preventDefault(); addItem('shop');" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <input type="text" id="shop-title" placeholder="Item Name (Optional)" class="bg-black border border-gray-700 p-2 w-full text-white">
+                            <input type="text" id="shop-price" placeholder="Price (Optional)" class="bg-black border border-gray-700 p-2 w-full text-white">
+                        </div>
+                        <div class="relative">
+                            <label class="block text-xs text-gray-500 mb-1">Upload Image (Resized for performance)</label>
+                            <input type="file" id="shop-image-file" accept="image/*" class="bg-black border border-gray-700 p-2 w-full text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-noah-green file:text-black hover:file:bg-white">
+                        </div>
+                        <input type="text" id="shop-tag" placeholder="Tag (e.g. Y2K, VINTAGE)" class="bg-black border border-gray-700 p-2 w-full text-white">
+                        <input type="text" id="shop-link" value="https://jp.mercari.com/user/profile/532695058?utm_medium=share&utm_source=ios" placeholder="Mercari Link" class="bg-black border border-gray-700 p-2 w-full text-white">
+                        <button type="submit" class="bg-noah-green text-black font-bold py-2 px-4 w-full hover:bg-white transition">ADD TO SHOP</button>
+                        <p class="text-xs text-gray-500 mt-2">* Added items will appear in the list below. Click the <i class="fas fa-star text-yellow-500"></i> icon on the card to feature it on the Home page.</p>
+                    </form>
+                </div>
             </div>
 
             <!-- Shop Grid (Populated by JS) -->
@@ -764,7 +811,6 @@
 
     <!-- JavaScript for SPA Functionality -->
     <script>
-        // Loading Animation
         window.addEventListener('load', () => {
             const loader = document.getElementById('loader');
             setTimeout(() => {
@@ -775,13 +821,11 @@
             }, 1000);
         });
 
-        // Mobile Menu Toggle
         function toggleMobileMenu() {
             const menu = document.getElementById('mobile-menu');
             menu.classList.toggle('hidden');
         }
 
-        // Page Switching Logic
         function switchPage(pageId) {
             const sections = document.querySelectorAll('.page-section');
             sections.forEach(section => {
